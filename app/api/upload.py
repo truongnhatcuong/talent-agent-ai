@@ -10,8 +10,6 @@ router = APIRouter(
     tags=["Upload"]
 )
 llm = LLMService()
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 @router.post("/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):
@@ -23,11 +21,8 @@ async def upload_cv(file: UploadFile = File(...)):
         return {
             "message": "Chỉ hỗ trợ file PDF"
         }
-    save_path = UPLOAD_DIR / file.filename
-    with open(save_path,"wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-        
-    cv_text = PDFService.extract_text(str(save_path))
+    pdf_bytes = await file.read()
+    cv_text = PDFService.extract_text(pdf_bytes)
     json_cv_str = await llm.parse_cv(cv_text)
     
     candidate_data = OutputParser.parse_json(json_cv_str)

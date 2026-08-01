@@ -4,12 +4,12 @@ import fitz
 class PDFService:
 
     @staticmethod
-    def extract_text(pdf_path: str) -> str:
+    def extract_text(pdf_bytes: bytes) -> str:
         """
-        Đọc toàn bộ nội dung của file PDF
+        Đọc toàn bộ nội dung của file PDF từ bộ nhớ RAM
         """
 
-        document = fitz.open(pdf_path)
+        document = fitz.open(stream=pdf_bytes, filetype="pdf")
 
         text = ""
 

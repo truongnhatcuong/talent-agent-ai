@@ -12,6 +12,7 @@ Schema:
   "phone": "",
   "address": "",
   "summary": "",
+  "exp": "",
   "skills": [],
   "experience": [
     {
@@ -45,6 +46,7 @@ Schema:
 Rules:
 
 - Return JSON only.
-- No markdown.
+- No markdown code block markers.
 - No explanation.
 - Missing value = null.
+- "exp": Calculate total years/time of work experience accurately based on candidate work history start & end dates (e.g., "3 năm", "5 năm", "2 năm 6 tháng", "Dưới 1 năm", "Fresher / Mới tốt nghiệp"). Be concise and precise.

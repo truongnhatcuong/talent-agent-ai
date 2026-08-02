@@ -4,10 +4,13 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from app.core.config import (
+  SECRET_KEY,
+)
 
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "talent_agent_ai_super_secret_jwt_key_2026_x89a")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
+
 
 
 def hash_password(password: str) -> str:

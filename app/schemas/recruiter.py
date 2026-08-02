@@ -15,4 +15,9 @@ class MatchCandidateRequest(BaseModel):
 class MatchJobRequest(BaseModel):
     candidate_id: int
     job_id: int
-
+
+
+class SendEmailRequest(BaseModel):
+    to_email: str
+    subject: str
+    body: str

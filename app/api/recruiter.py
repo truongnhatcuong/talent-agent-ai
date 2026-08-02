@@ -1,9 +1,15 @@
+import ssl
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate, make_msgid
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 from postgrest.exceptions import APIError
 
 from app.core.database import get_supabase
-from app.schemas.recruiter import MatchRequest, MatchCandidateRequest, MatchJobRequest
+from app.core.config import EMAIL_USER, EMAIL_PASS
+from app.schemas.recruiter import MatchRequest, MatchCandidateRequest, MatchJobRequest, SendEmailRequest
 from app.services.recruiter_service import RecruiterService
 
 router = APIRouter(
@@ -29,6 +35,110 @@ async def get_candidates(supabase: Client = Depends(get_supabase)):
                 detail="Lỗi RLS: Bảng 'candidate' đang bật RLS."
             ) from e
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.message) from e
+
+
+@router.get("/candidates/test-email")
+async def test_email_sending():
+    """
+    Test gửi email trực tiếp qua Gmail SMTP bằng đường dẫn trình duyệt
+    """
+    clean_user = str(EMAIL_USER).strip() if EMAIL_USER else "truongnhatcuong2222004@gmail.com"
+    clean_pass = str(EMAIL_PASS).replace(" ", "").replace("-", "").strip() if EMAIL_PASS else ""
+
+    msg = MIMEMultipart()
+    msg["From"] = f"Talent Agent AI <{clean_user}>"
+    msg["To"] = clean_user
+    msg["Subject"] = "[Talent Agent AI] Test Gửi Email SMTP Thành Công"
+    msg.attach(MIMEText("Xin chào, đây là email kiểm tra hệ thống Talent Agent AI!", "plain", "utf-8"))
+
+    # Thử Cổng 587
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, local_hostname="localhost", timeout=15) as server:
+            server.starttls()
+            server.login(clean_user, clean_pass)
+            server.send_message(msg)
+            return {
+                "status": "success",
+                "port": 587,
+                "email_user": clean_user,
+                "message": f"Gửi email test thực tế thành công tới {clean_user} qua Cổng 587!"
+            }
+    except Exception as e587:
+        print("Port 587 test failed:", e587)
+
+    # Thử Cổng 465 SSL
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, local_hostname="localhost", context=context, timeout=15) as server:
+            server.login(clean_user, clean_pass)
+            server.send_message(msg)
+            return {
+                "status": "success",
+                "port": 465,
+                "email_user": clean_user,
+                "message": f"Gửi email test thực tế thành công tới {clean_user} qua Cổng 465 SSL!"
+            }
+    except Exception as e465:
+        print("Port 465 test failed:", e465)
+
+    return {
+        "status": "error",
+        "email_user": clean_user,
+        "message": "Không thể kết nối máy chủ gửi mail."
+    }
+
+
+@router.post("/candidates/send-email")
+async def send_candidate_email(req: SendEmailRequest):
+    """
+    Gửi email trực tiếp cho ứng viên bằng SMTP Gmail
+    """
+
+    clean_user = str(EMAIL_USER).strip() if EMAIL_USER else "truongnhatcuong2222004@gmail.com"
+    clean_pass = str(EMAIL_PASS).replace(" ", "").replace("-", "").strip() if EMAIL_PASS else ""
+
+    msg = MIMEMultipart()
+    msg["From"] = f"Talent Agent AI <{clean_user}>"
+    msg["To"] = req.to_email
+    msg["Subject"] = req.subject
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain="gmail.com")
+    msg.attach(MIMEText(req.body, "plain", "utf-8"))
+
+    # Cách 1: Thử Cổng 587
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, local_hostname="localhost", timeout=15) as server:
+            server.starttls()
+            server.login(clean_user, clean_pass)
+            server.send_message(msg)
+            return {"status": "success", "message": f"Đã gửi email thực tế thành công tới {req.to_email} qua Gmail SMTP Cổng 587!"}
+    except smtplib.SMTPAuthenticationError as auth_err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mật khẩu ứng dụng Gmail (EMAIL_PASS) không chính xác."
+        ) from auth_err
+    except Exception as e:
+        print("Port 587 failed:", e)
+
+    # Cách 2: Thử Cổng 465 SSL
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, local_hostname="localhost", context=context, timeout=15) as server:
+            server.login(clean_user, clean_pass)
+            server.send_message(msg)
+            return {"status": "success", "message": f"Đã gửi email thực tế thành công tới {req.to_email} qua Gmail SMTP Cổng 465 SSL!"}
+    except smtplib.SMTPAuthenticationError as auth_err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mật khẩu ứng dụng Gmail (EMAIL_PASS) không chính xác."
+        ) from auth_err
+    except Exception as e:
+        print("Port 465 failed:", e)
+
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Không thể gửi email qua Gmail SMTP."
+    )
 
 
 @router.get("/candidates/{candidate_id}")
@@ -225,3 +335,66 @@ async def recommend_jobs_for_candidate(candidate_id: int, supabase: Client = Dep
         "score": recommendations[0].get("match_score") if recommendations else None,
         "recommended_jobs": recommendations
     }
+
+
+@router.post("/candidates/send-email")
+async def send_candidate_email(req: SendEmailRequest):
+    """
+    Gửi email trực tiếp cho ứng viên bằng SMTP Gmail
+    """
+    if not EMAIL_USER or not EMAIL_PASS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chưa cấu hình EMAIL_USER hoặc EMAIL_PASS trong file .env"
+        )
+
+    clean_user = str(EMAIL_USER).strip()
+    # Bắt buộc xóa khoảng trắng trong Mật khẩu ứng dụng 16 ký tự của Gmail
+    clean_pass = str(EMAIL_PASS).replace(" ", "").replace("-", "").strip()
+
+    msg = MIMEMultipart()
+    msg["From"] = f"Talent Agent AI <{clean_user}>"
+    msg["To"] = req.to_email
+    msg["Subject"] = req.subject
+    msg.attach(MIMEText(req.body, "plain", "utf-8"))
+
+    last_error = None
+
+    # Cách 1: Thử Cổng 587 với STARTTLS
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+            server.starttls()
+            server.login(clean_user, clean_pass)
+            server.send_message(msg)
+            return {"status": "success", "message": f"Email đã gửi thành công tới {req.to_email}"}
+    except smtplib.SMTPAuthenticationError as auth_err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mật khẩu ứng dụng Gmail (EMAIL_PASS) không chính xác. Vui lòng kiểm tra Mật khẩu ứng dụng 16 ký tự tại Google Account."
+        ) from auth_err
+    except Exception as e:
+        last_error = e
+
+    # Cách 2: Fallback Cổng 465 với SSL trực tiếp
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15) as server:
+            server.login(clean_user, clean_pass)
+            server.send_message(msg)
+            return {"status": "success", "message": f"Email đã gửi thành công tới {req.to_email}"}
+    except smtplib.SMTPAuthenticationError as auth_err:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mật khẩu ứng dụng Gmail (EMAIL_PASS) không chính xác. Vui lòng kiểm tra Mật khẩu ứng dụng 16 ký tự tại Google Account."
+        ) from auth_err
+    except Exception as e:
+        last_error = e
+
+    print(f"Error sending email via SMTP: {last_error}")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail=f"Lỗi khi gửi email: {str(last_error)}"
+    )
+
+
+

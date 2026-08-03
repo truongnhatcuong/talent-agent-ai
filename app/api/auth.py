@@ -22,32 +22,31 @@ async def login_hr(payload: LoginRequest, supabase: Client = Depends(get_supabas
         res = supabase.table("user_account").select("*").eq("email", payload.email).execute()
         
         if not res.data:
-            # Check default admin if not in DB yet
-            if payload.email == "admin@talentagent.ai" and payload.password == "password123":
-                token = create_access_token({"sub": payload.email, "role": "admin"})
-                return AuthResponse(
-                    success=True,
-                    email=payload.email,
-                    full_name="HR Admin",
-                    role="admin",
-                    access_token=token,
-                    token_type="bearer",
-                    message="Đăng nhập thành công và khởi tạo JWT Token!"
-                )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Email hoặc mật khẩu không chính xác!"
             )
 
         user = res.data[0]
-        stored_password = user.get("password", "")
+        stored_password = user.get("password")
 
         # Verify password with PBKDF2 salt check
-        if not verify_password(payload.password, stored_password):
+        if not stored_password or not verify_password(payload.password, stored_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Mật khẩu không chính xác!"
+                detail="Email hoặc mật khẩu không chính xác!"
             )
+
+        # Auto-upgrade plain-text password to PBKDF2 hashed password if legacy format is detected
+        if "$" not in stored_password:
+            try:
+                new_hashed_password = hash_password(payload.password)
+                supabase.table("user_account").update({
+                    "password": new_hashed_password,
+                    "updated_at": datetime.now().isoformat()
+                }).eq("email", user.get("email")).execute()
+            except Exception:
+                pass
 
         # Generate JWT Token
         token = create_access_token({
@@ -108,10 +107,10 @@ async def change_password(
             )
 
         user = res.data[0]
-        stored_password = user.get("password", "")
+        stored_password = user.get("password")
 
         # Verify current password
-        if not verify_password(payload.current_password, stored_password):
+        if not stored_password or not verify_password(payload.current_password, stored_password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Mật khẩu hiện tại không đúng!"
@@ -146,7 +145,10 @@ async def get_current_user(
     Lấy thông tin tài khoản HR từ mã Token JWT.
     """
     if not authorization or not authorization.startswith("Bearer "):
-        return {"email": "admin@talentagent.ai", "full_name": "HR Admin", "role": "admin"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Mã JWT Token không được cung cấp!"
+        )
 
     token = authorization.split(" ")[1]
     payload = decode_access_token(token)
@@ -164,3 +166,5 @@ async def get_current_user(
         "role": payload.get("role", "admin"),
         "exp": payload.get("exp")
     }
+
+

@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.api.upload import router as upload_router
-from app.api.test import router as test_router
 from app.api.recruiter import router as recruiter_router
 from app.api.job import router as job_router
 from app.api.interview import router as interview_router
@@ -31,7 +30,6 @@ app.add_middleware(
 )
 
 app.include_router(upload_router)
-app.include_router(test_router)
 app.include_router(recruiter_router)
 app.include_router(job_router)
 app.include_router(interview_router)

@@ -91,3 +91,27 @@ class LLMService:
             system_prompt=system_prompt,
             temperature=0.1,
         )
+
+    async def parse_jd(self, jd_text: str) -> str:
+        """
+        Parse JD file text thành JSON thông tin công việc
+        """
+        system_prompt = (
+            "Bạn là trợ lý AI chuyên phân tích tài liệu Mô tả công việc (Job Description / JD).\n"
+            "Hãy bóc tách thông tin từ văn bản JD thành một đối tượng JSON chuẩn với các trường:\n"
+            "{\n"
+            '  "title": "Tên/Chức danh công việc",\n'
+            '  "department": "Tên phòng ban (VD: Engineering, Product, Marketing,...)",\n'
+            '  "location": "Địa điểm làm việc (VD: Hà Nội, Hồ Chí Minh, Remote,...)",\n'
+            '  "employment_type": "Full-time / Part-time / Remote / Contract",\n'
+            '  "salary": "Mức lương (VD: 20 - 30 Triệu, Thỏa thuận,...)",\n'
+            '  "deadline": "Hạn nộp hồ sơ (VD: 30/09/2026)",\n'
+            '  "description": "Toàn bộ mô tả chi tiết & yêu cầu công việc"\n'
+            "}\n"
+            "Chỉ trả về duy nhất chuỗi JSON hợp lệ."
+        )
+        return await self.chat(
+            prompt=jd_text,
+            system_prompt=system_prompt,
+            temperature=0.1,
+        )

@@ -1,15 +1,56 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from supabase import Client
 from postgrest.exceptions import APIError
 
 from app.core.database import get_supabase
 from app.schemas.job import JobCreate, JobUpdate
+from app.services.pdf_service import PDFService
+from app.services.llm_service import LLMService
+from app.services.output_parser import OutputParser
 
 router = APIRouter(
     prefix="/jobs",
     tags=["Jobs / JDs"]
 )
+
+llm_service = LLMService()
+
+
+@router.post("/parse-jd-file")
+async def parse_jd_file(file: UploadFile = File(...)):
+    """
+    Nhận file JD (PDF, DOCX, DOC, TXT), tự động trích xuất nội dung và dùng AI bóc tách thông tin tin tuyển dụng.
+    """
+    if not file:
+        raise HTTPException(status_code=400, detail="Vui lòng chọn file văn bản JD")
+    
+    file_bytes = await file.read()
+    raw_text = PDFService.extract_text(file_bytes, filename=file.filename or "jd.pdf")
+
+    if not raw_text or not raw_text.strip():
+        raise HTTPException(status_code=400, detail="Không thể trích xuất văn bản từ file JD đã chọn.")
+
+    try:
+        json_str = await llm_service.parse_jd(raw_text)
+        parsed_data = OutputParser.parse_json(json_str)
+    except Exception as e:
+        print(f"AI JD parse error: {e}")
+        parsed_data = {
+            "title": file.filename.rsplit(".", 1)[0] if file.filename else "Vị trí tuyển dụng",
+            "description": raw_text
+        }
+
+    if not parsed_data.get("description"):
+        parsed_data["description"] = raw_text
+
+    return {
+        "success": True,
+        "filename": file.filename,
+        "raw_text": raw_text,
+        "parsed": parsed_data
+    }
+
 
 
 

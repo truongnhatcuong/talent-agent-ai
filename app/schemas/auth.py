@@ -18,4 +18,7 @@ class AuthResponse(BaseModel):
     email: str
     full_name: Optional[str] = "HR Admin"
     role: Optional[str] = "admin"
+    access_token: Optional[str] = None
+    token_type: Optional[str] = "bearer"
     message: Optional[str] = None
+

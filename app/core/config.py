@@ -13,3 +13,7 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "talent_agent_ai_super_secret_jwt_key_2
 
 EMAIL_USER = os.getenv("EMAIL_USER", "truongnhatcuong2222004@gmail.com")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "fexm bkjv godd viaw")
+
+DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@talentagent.ai")
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "password123")
+

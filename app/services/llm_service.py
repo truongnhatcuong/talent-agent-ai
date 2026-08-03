@@ -45,6 +45,10 @@ class LLMService:
                 }
             )
 
+        # Truncate prompt if payload is extremely large to avoid Nginx 413 Request Entity Too Large
+        if len(prompt) > 15000:
+            prompt = prompt[:15000]
+
         messages.append(
             {
                 "role": "user",
@@ -114,4 +118,4 @@ class LLMService:
             prompt=jd_text,
             system_prompt=system_prompt,
             temperature=0.1,
-        )
+        )

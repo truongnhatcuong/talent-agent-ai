@@ -41,7 +41,18 @@ async def upload_cv(
 
     # BƯỚC 1: Extract text & AI bóc tách CV
     pdf_bytes = await file.read()
-    cv_text = PDFService.extract_text(pdf_bytes)
+    cv_text = PDFService.extract_text(pdf_bytes, filename=file.filename or "cv.pdf")
+    
+    if not cv_text or not cv_text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Không thể trích xuất được văn bản từ file CV đã chọn. Vui lòng kiểm tra lại file."
+        )
+
+    # Giới hạn độ dài văn bản CV tối đa (vd: 15,000 ký tự) để tránh làm tràn payload gửi đến LLM (Lỗi 413)
+    if len(cv_text) > 15000:
+        cv_text = cv_text[:15000]
+
     json_cv_str = await llm.parse_cv(cv_text)
     candidate_data = OutputParser.parse_json(json_cv_str)
 
@@ -67,6 +78,8 @@ async def upload_cv(
         "address": candidate_data.get("address"),
         "summary": candidate_data.get("summary"),
         "exp": str(exp_val),
+        "domain_industry": candidate_data.get("domain_industry") or [],
+        "primary_roles": candidate_data.get("primary_roles") or [],
         "skills": candidate_data.get("skills") or [],
         "experience": candidate_data.get("experience") or [],
         "education": candidate_data.get("education") or [],

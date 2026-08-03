@@ -53,32 +53,45 @@ class PDFService:
         except Exception as e:
             pass
 
-        # Phương án 3: OCR nếu PDF là dạng ảnh
-        if fn.endswith(".pdf"):
+        # Phương án 3: OCR nếu PDF hoặc file ảnh
+        if fn.endswith(".pdf") or fn.endswith(".png") or fn.endswith(".jpg") or fn.endswith(".jpeg"):
             try:
                 import platform
+                import os
+                from PIL import Image
                 
-                # Cấu hình đường dẫn tuỳ theo hệ điều hành (Windows vs Linux/Mac)
+                # Sửa lỗi Heroku không tìm thấy dữ liệu Tiếng Việt (TESSDATA_PREFIX)
+                tess_paths = [
+                    "/app/.apt/usr/share/tesseract-ocr/5/tessdata",
+                    "/app/.apt/usr/share/tesseract-ocr/4.00/tessdata",
+                    "/usr/share/tesseract-ocr/5/tessdata"
+                ]
+                for p in tess_paths:
+                    if os.path.exists(p):
+                        os.environ["TESSDATA_PREFIX"] = p
+                        break
+                
                 if platform.system() == "Windows":
                     pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-                    poppler_path = r'C:\poppler\Library\bin'
-                    images = convert_from_bytes(file_bytes, poppler_path=poppler_path)
-                else:
-                    # Trên Linux (Docker, Ubuntu VPS, Render, etc.), thư viện sẽ tự lấy từ PATH
-                    images = convert_from_bytes(file_bytes)
-                    
+                
                 ocr_text = ""
-                for img in images:
-                    # Yêu cầu cài đặt Tesseract (có bộ tiếng việt vie.traineddata) trên máy
-                    ocr_text += pytesseract.image_to_string(img, lang='vie+eng') + "\n"
-
-
+                
+                if fn.endswith(".pdf"):
+                    if platform.system() == "Windows":
+                        poppler_path = r'C:\poppler\Library\bin'
+                        images = convert_from_bytes(file_bytes, poppler_path=poppler_path)
+                    else:
+                        images = convert_from_bytes(file_bytes)
+                    for img in images:
+                        ocr_text += pytesseract.image_to_string(img, lang='vie+eng') + "\n"
+                else:
+                    img = Image.open(io.BytesIO(file_bytes))
+                    ocr_text = pytesseract.image_to_string(img, lang='vie+eng')
                 
                 if ocr_text.strip():
                     return ocr_text
             except Exception as e:
-                print(f"Error reading PDF with OCR (Tesseract/Poppler có thể chưa cài trên máy tính): {e}")
-
+                print(f"Error reading with OCR: {e}")
 
         # Final fallback: chỉ áp dụng nếu là plain text thực sự
         try:

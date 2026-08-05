@@ -1,8 +1,11 @@
+from app.core.config import GOOGLE_DOC_ID
 import ssl
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formatdate, make_msgid
+import urllib.request
+import urllib.error
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 from postgrest.exceptions import APIError
@@ -397,4 +400,17 @@ async def send_candidate_email(req: SendEmailRequest):
     )
 
 
+@router.get("/email-template")
+async def get_email_template():
+    """
+    Proxy để lấy nội dung text từ Google Docs để tránh lỗi CORS ở trình duyệt.
+    """
+    url = f"https://docs.google.com/document/d/{GOOGLE_DOC_ID}/export?format=txt"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            content = response.read().decode('utf-8')
+            return {"template": content}
+    except urllib.error.URLError as e:
+        raise HTTPException(status_code=500, detail=f"Không thể tải mẫu thư: {str(e)}")
 
